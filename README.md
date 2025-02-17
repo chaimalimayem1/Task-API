@@ -1,2 +1,2 @@
-# GIE
-Gestion Intelligente d'Entreprise
+API de Gestion des Tâches avec WebSockets
+
