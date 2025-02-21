@@ -1,6 +1,10 @@
-const { signupSchema } = require("../middlewares/validator");
+const jwt = require('jsonwebtoken');
+const { signupSchema,
+    signinSchema,
+	acceptCodeSchema,
+ } = require("../middlewares/validator");
 const User = require("../models/usersModel");
-const { doHash } = require("../utils/hashing");
+const { doHash,doHashValidation, hmacProcess  } = require("../utils/hashing");
 
 exports.signup = async (req, res) => {
     const { email, password } = req.body;
@@ -32,4 +36,54 @@ exports.signup = async (req, res) => {
         console.log(err);
     }
     
+};
+
+exports.signin = async (req, res) => {
+	const { email, password } = req.body;
+	try {
+		const { error, value } = signinSchema.validate({ email, password });
+		if (error) {
+			return res
+				.status(401)
+				.json({ success: false, message: error.details[0].message });
+		}
+
+		const existingUser = await User.findOne({ email }).select('+password');
+		if (!existingUser) {
+			return res
+				.status(401)
+				.json({ success: false, message: 'User does not exists!' });
+		}
+		const result = await doHashValidation(password, existingUser.password);
+		if (!result) {
+			return res
+				.status(401)
+				.json({ success: false, message: 'Invalid credentials!' });
+		}
+		const token = jwt.sign(
+			{
+				userId: existingUser._id,
+				email: existingUser.email,
+				verified: existingUser.verified,
+			},
+			process.env.TOKEN_SECRET,
+			{
+				expiresIn: '8h',
+			}
+		);
+
+		res
+			.cookie('Authorization', 'Bearer ' + token, {
+				expires: new Date(Date.now() + 8 * 3600000),
+				httpOnly: process.env.NODE_ENV === 'production',
+				secure: process.env.NODE_ENV === 'production',
+			})
+			.json({
+				success: true,
+				token,
+				message: 'logged in successfully',
+			});
+	} catch (error) {
+		console.log(error);
+	}
 };
